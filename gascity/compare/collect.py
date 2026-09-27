@@ -301,7 +301,10 @@ def parse_verdict(report):
         total, maximum = int(match.group(1)), int(match.group(2))
     priorities = Counter(re.findall(r"\*\*\[P([0-3])\]", report))
     findings = None
-    found = re.search(r"(\d+)\s+(?:findings|warnings)", report, re.IGNORECASE)
+    # Reports say "1 finding" or "2 findings"; either is the detector count.
+    found = re.search(r"(\d+)\s+findings?\b", report, re.IGNORECASE)
+    if not found:
+        found = re.search(r"(\d+)\s+warnings?\b", report, re.IGNORECASE)
     if found:
         findings = int(found.group(1))
     return {
