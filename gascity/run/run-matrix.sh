@@ -91,7 +91,9 @@ install_packs() {
 }
 
 commit_as() {
-  git -C "$1" -c user.name=builder-experiment -c user.email=experiment@localhost commit -qm "$2" || true
+  # A no-op commit prints "nothing to commit" on stdout even with -q, and
+  # that text would be captured by callers that read this function's output.
+  git -C "$1" -c user.name=builder-experiment -c user.email=experiment@localhost commit -qm "$2" >/dev/null 2>&1 || true
 }
 
 prepare_project() {
@@ -107,7 +109,7 @@ prepare_project() {
   else
     mkdir -p "$dir/docs"
     cp "$BRIEF" "$dir/docs/brief.md"
-    git -C "$dir" add docs/brief.md
+    git -C "$dir" add docs/brief.md >/dev/null
     commit_as "$dir" "Refresh experiment brief"
   fi
   printf '%s\n' "$dir"
@@ -299,7 +301,7 @@ for spec in "${ARMS[@]}"; do
     rm -rf "$dir/.claude"
     mkdir -p "$dir/.claude"
     cp -R "$PACKS/impeccable-native/claude-build/.claude/." "$dir/.claude/"
-    git -C "$dir" add .claude
+    git -C "$dir" add .claude >/dev/null
     commit_as "$dir" "Install Impeccable Claude build"
   fi
   register_rig "exp-$arm" "$prefix" "$pack"
