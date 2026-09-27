@@ -31,8 +31,11 @@ gascity/
     impeccable/                 generated pack (7 agents, critique formula, compiled skill)
     impeccable-native/          generated baseline pack (1 agent) + claude-build/.claude
   run/setup-rigs.sh             host-side: two projects, two rigs, one critique each
-  compare/collect.py            host-side: events + beads + Claude transcripts -> comparison
-  compare/results/              one directory per comparison run, with both reports
+  run/run-matrix.sh             host-side: six builders, then one critique each
+  experiments/brief.md          the closed landing-page brief every builder receives
+  packs/coder/                  generic implementer for the mol-* work formulas
+  compare/collect.py            host-side: events + beads + Claude transcripts -> comparison or scoreboard
+  compare/results/              one directory per comparison run, with the reports
 ```
 
 ## What maps to what
@@ -164,6 +167,18 @@ What the numbers say:
   read-only agents to `full-auto` (`--permission-mode dontAsk`) with an
   explicit allow list is the next step and needs a test that `step.sh`'s Bash
   calls still pass.
+
+## Builder scoreboard
+
+`run/run-matrix.sh` runs six builders against `experiments/brief.md`, one at a
+time, on `claude-sonnet-5` at high effort, then scores each finished
+`site/index.html` with the `impeccable` critique pack in its own project (so
+snapshot slugs do not collide). Factory's discover and review steps stay open
+until a person sends `APPROVED` on Telegram; the script records that arm as
+blocked and does not approve it. The first sample is
+`compare/results/2026-09-27-builders/scoreboard.md`. One critique per page, so
+a difference of one heuristic is the same noise already seen when the same
+file was scored twice.
 
 ## Known limits
 

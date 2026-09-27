@@ -261,7 +261,9 @@ find_page() {
     printf '%s\n' "$dir/index.html"
     return
   fi
-  find "$dir" -name index.html -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/.impeccable/*' | head -1
+  find "$dir" -name index.html \
+    -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/.impeccable/*' \
+    -print -quit 2>/dev/null || true
 }
 
 score_page() {
@@ -369,12 +371,18 @@ for spec in "${ARMS[@]}"; do
 done
 
 score_args=()
-while IFS=$'\t' read -r arm build build_wf score_wf note; do
-  [ "$arm" = "arm" ] && continue
-  if [ -n "$score_wf" ] && [ -f "$PROJECTS/score-$arm/.impeccable/gc/$score_wf/report.md" ]; then
-    score_args+=(--arm "$arm:$score_wf:$PROJECTS/score-$arm")
-  fi
-done < "$STATUS"
+while IFS= read -r spec; do
+  [ -n "$spec" ] && score_args+=(--arm "$spec")
+done < <(python3 - "$STATUS" "$PROJECTS" << 'PY'
+import os, sys
+status, projects = sys.argv[1:]
+for line in open(status, encoding="utf-8").read().splitlines()[1:]:
+    arm, _build, _wf, score_wf, _note = (line.split("\t") + [""] * 5)[:5]
+    report = os.path.join(projects, "score-" + arm, ".impeccable", "gc", score_wf, "report.md")
+    if score_wf and os.path.isfile(report):
+        print(f"{arm}:{score_wf}:{os.path.join(projects, 'score-' + arm)}")
+PY
+)
 
 {
   echo "# Builder experiment $DATE"
@@ -385,10 +393,15 @@ done < "$STATUS"
   echo
   echo "| Arm | Build | Workflow | Score workflow | Note |"
   echo "|---|---|---|---|---|"
-  while IFS=$'\t' read -r arm build build_wf score_wf note; do
-    [ "$arm" = "arm" ] && continue
-    echo "| $arm | $build | ${build_wf:-"-"} | ${score_wf:-"-"} | ${note:-"-"} |"
-  done < "$STATUS"
+  # bash read collapses a tab-tab empty field, so parse the TSV in Python.
+  python3 - "$STATUS" << 'PY'
+import sys
+rows = open(sys.argv[1], encoding="utf-8").read().splitlines()
+for line in rows[1:]:
+    arm, build, build_wf, score_wf, note = (line.split("\t") + [""] * 5)[:5]
+    cells = [arm, build, build_wf or "-", score_wf or "-", note or "-"]
+    print("| " + " | ".join(c.replace("|", "/") for c in cells) + " |")
+PY
   echo
   if [ "${#score_args[@]}" -gt 0 ]; then
     python3 "$GASTCITY/compare/collect.py" --city "$CITY" --api "$API" --since "$START" --scoreboard \
