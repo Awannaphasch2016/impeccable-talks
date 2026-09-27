@@ -11,6 +11,6 @@ option_defaults = { effort = "high" }
 args = ["--disallowedTools", "AskUserQuestion"]
 
 [env]
-OTEL_RESOURCE_ATTRIBUTES = "gc.agent=native.runner"
+OTEL_RESOURCE_ATTRIBUTES = "gc.agent=impeccable-native.runner"
 IMPECCABLE_PACK = "/opt/gascity/packs/impeccable-native"
 IMPECCABLE_API = "http://127.0.0.1:8372/v0/city/factory"

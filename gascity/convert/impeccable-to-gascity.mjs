@@ -8,7 +8,8 @@
 //     [--install-path /opt/gascity/packs/impeccable] \
 //     [--api-url http://127.0.0.1:8372/v0/city/factory] \
 //     [--baseline-out gascity/packs/impeccable-native] \
-//     [--baseline-install-path /opt/gascity/packs/impeccable-native]
+//     [--baseline-install-path /opt/gascity/packs/impeccable-native] \
+//     [--claude-out gascity/packs/impeccable-native/claude-build]
 //
 // What maps to what:
 //   skill/agents/*.md            -> agents/<name>/{agent.toml,prompt.template.md}
@@ -25,6 +26,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { agentFromImpeccable, syntheticAgents } from './lib/agents.mjs';
 import { emitPack, emitBaselinePack } from './lib/emit.mjs';
+import { emitClaudeBuild } from './lib/claude.mjs';
 import { gascityPlaceholders } from './lib/text.mjs';
 
 function parseArgs(argv) {
@@ -32,7 +34,7 @@ function parseArgs(argv) {
     'pack-name': 'impeccable',
     'install-path': '/opt/gascity/packs/impeccable',
     'api-url': 'http://127.0.0.1:8372/v0/city/factory',
-    'baseline-pack-name': 'native',
+    'baseline-pack-name': 'impeccable-native',
     'baseline-install-path': '/opt/gascity/packs/impeccable-native',
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -106,6 +108,13 @@ function main() {
       apiUrl: args['api-url'],
     });
     process.stdout.write(`wrote ${baselineOut} (baseline arm)\n`);
+  }
+
+  // Impeccable's own Claude Code layout, for the baseline rig's .claude/.
+  if (args['claude-out']) {
+    const claudeOut = path.resolve(args['claude-out']);
+    const r = emitClaudeBuild({ source, out: claudeOut });
+    process.stdout.write(`wrote ${claudeOut}/.claude (skill + ${r.refs} references, agents: ${r.agents.join(', ')})\n`);
   }
 }
 
