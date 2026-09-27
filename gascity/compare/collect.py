@@ -30,6 +30,21 @@ from datetime import datetime, timezone
 
 ISO = "%Y-%m-%dT%H:%M:%S"
 
+# Files the critique workflow passes between agents. Who may read which one is
+# the isolation contract the pack claims to enforce.
+WORKFLOW_FILES = ("packet.md", "assessment-a.md", "assessment-b.md", "report.md")
+ROLE_BY_WRITE = {
+    "packet.md": "conductor (prepare)",
+    "assessment-a.md": "design-reviewer",
+    "assessment-b.md": "evidence-collector",
+    "report.md": "conductor (synthesize) / runner",
+}
+FORBIDDEN = {
+    "design-reviewer": {"assessment-b.md", "report.md"},
+    "evidence-collector": {"assessment-a.md", "report.md"},
+    "conductor (prepare)": {"assessment-a.md", "assessment-b.md", "report.md"},
+}
+
 
 def parse_ts(value):
     if not value:
@@ -77,6 +92,7 @@ def load_events(city, run_id, since):
                 steps[sid]["started"] = ts
                 steps[sid]["session"] = ev.get("session_id")
                 steps[sid]["actor"] = ev.get("actor")
+                steps[sid]["depends_on"] = ev.get("depends_on_step_ids") or []
                 sessions.add(ev.get("session_id"))
             elif kind == "bead.updated":
                 payload = ev.get("payload") or {}
@@ -148,13 +164,19 @@ def read_transcript(path):
                         files_written.add(inp["file_path"])
                     if name == "Bash":
                         cmd = inp.get("command", "")
+                        written_here = None
                         # step.sh result and heredocs are the pack's write path.
                         if "step.sh" in cmd and " result " in cmd:
-                            files_written.add(f"(step.sh result) {cmd.split(' result ', 1)[1].split()[1] if len(cmd.split(' result ', 1)[1].split()) > 1 else '?'}")
-                        for token in cmd.replace("'", " ").replace('"', " ").split():
-                            if token.endswith(".md") and ("assessment" in token or "packet" in token or "report" in token):
-                                files_read.add(f"(bash) {token}")
-                    if name == "Task":
+                            rest = cmd.split(" result ", 1)[1].split()
+                            written_here = rest[1] if len(rest) > 1 else "?"
+                            files_written.add(f"(step.sh result) {written_here}")
+                        for token in cmd.replace("'", " ").replace('"', " ").replace(";", " ").split():
+                            base = os.path.basename(token)
+                            if base in WORKFLOW_FILES and base != written_here:
+                                files_read.add(f"(bash) {base}")
+                            elif token.endswith("*.md") and (".impeccable/gc" in token or "$WORK" in token or "WORK" in token):
+                                files_read.add("(bash) *.md (every workflow file)")
+                    if name in ("Task", "Agent"):
                         task_prompts.append({
                             "subagent_type": inp.get("subagent_type"),
                             "description": inp.get("description"),
@@ -207,6 +229,37 @@ def workflow_files(project_dir, run_id):
     return files, snapshots
 
 
+def role_of(t):
+    for name, role in ROLE_BY_WRITE.items():
+        if any(name in w for w in t["files_written"]):
+            return role
+    return "sub-agent" if t["is_subagent"] else "session"
+
+
+def workflow_touches(t):
+    touched = set()
+    for p in list(t["files_read"]):
+        base = os.path.basename(p.replace("(bash) ", ""))
+        if base in WORKFLOW_FILES:
+            touched.add(base)
+        if "every workflow file" in p:
+            touched.update(WORKFLOW_FILES)
+    return touched
+
+
+def orchestration_gaps(steps):
+    """Seconds between a step's last dependency closing and the step starting."""
+    gaps = {}
+    for sid, st in steps.items():
+        deps = st.get("depends_on") or []
+        if not deps or not st.get("started"):
+            continue
+        closes = [steps[d]["closed"] for d in deps if d in steps and steps[d].get("closed")]
+        if len(closes) == len(deps):
+            gaps[sid] = (st["started"] - max(closes)).total_seconds()
+    return gaps
+
+
 def fmt_dt(a, b):
     if not a or not b:
         return "-"
@@ -229,6 +282,8 @@ def summarize(arm):
         "tools": dict(tools),
         "task_calls": sum(len(t["task_calls"]) for t in arm["transcripts"]),
         "wall": fmt_dt(min(firsts), max(lasts)) if firsts and lasts else "-",
+        "orchestration_gap_s": round(sum(orchestration_gaps(arm["steps"]).values())),
+        "step_work_s": round(sum((s["closed"] - s["started"]).total_seconds() for s in arm["steps"].values() if s.get("started") and s.get("closed"))),
     }
 
 
@@ -244,10 +299,13 @@ def render(arms):
         ("  of which Task sub-agents", lambda a: str(a["summary"]["subagent_conversations"])),
         ("Task tool calls", lambda a: str(a["summary"]["task_calls"])),
         ("Assistant turns", lambda a: str(a["summary"]["assistant_turns"])),
+        ("Sum of step durations", lambda a: f"{a['summary']['step_work_s']}s"),
+        ("Orchestration gap (dep closed to step started)", lambda a: f"{a['summary']['orchestration_gap_s']}s"),
         ("Input tokens (uncached)", lambda a: f"{a['summary']['usage'].get('input_tokens', 0):,}"),
         ("Cache write tokens", lambda a: f"{a['summary']['usage'].get('cache_creation_input_tokens', 0):,}"),
         ("Cache read tokens", lambda a: f"{a['summary']['usage'].get('cache_read_input_tokens', 0):,}"),
         ("Output tokens", lambda a: f"{a['summary']['usage'].get('output_tokens', 0):,}"),
+        ("Total input incl. cache", lambda a: f"{sum(a['summary']['usage'].get(k, 0) for k in ('input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens')):,}"),
         ("Tool calls", lambda a: str(sum(a["summary"]["tools"].values()))),
         ("report.md produced", lambda a: "yes" if "report.md" in a["files"] else "no"),
         ("Snapshots in .impeccable/critique", lambda a: str(len(a["snapshots"]))),
@@ -273,20 +331,43 @@ def render(arms):
         lines.append("")
         lines.append("### Conversations (Claude Code transcripts)")
         lines.append("")
-        lines.append("| # | Kind | Turns | In | Cache r/w | Out | Tools | Read (workflow files) | Wrote |")
-        lines.append("|---|---|---|---|---|---|---|---|---|")
+        lines.append("| # | Role | Turns | In | Cache r/w | Out | Duration | Tools | Workflow files touched | Wrote |")
+        lines.append("|---|---|---|---|---|---|---|---|---|---|")
         for i, t in enumerate(a["transcripts"], 1):
             u = t["usage"]
-            wf_reads = [p for p in t["files_read"] if ".impeccable/gc/" in p or p.startswith("(bash)")]
             top_tools = ", ".join(f"{k}x{v}" for k, v in sorted(t["tools"].items(), key=lambda kv: -kv[1])[:5])
             lines.append(
-                f"| {i} | {'sub-agent' if t['is_subagent'] else 'session'} | {t['assistant_turns']} | "
+                f"| {i} | {role_of(t)} | {t['assistant_turns']} | "
                 f"{u.get('input_tokens', 0):,} | {u.get('cache_read_input_tokens', 0):,}/{u.get('cache_creation_input_tokens', 0):,} | "
-                f"{u.get('output_tokens', 0):,} | {top_tools} | "
-                f"{'; '.join(os.path.basename(p) for p in wf_reads) or '-'} | "
+                f"{u.get('output_tokens', 0):,} | {fmt_dt(t['first'], t['last'])} | {top_tools} | "
+                f"{'; '.join(sorted(workflow_touches(t))) or '-'} | "
                 f"{'; '.join(os.path.basename(p) for p in t['files_written']) or '-'} |"
             )
         lines.append("")
+        audit = []
+        for t in a["transcripts"]:
+            role = role_of(t)
+            forbidden = FORBIDDEN.get(role)
+            if forbidden is None:
+                continue
+            leaked = sorted(workflow_touches(t) & forbidden)
+            audit.append((role, leaked))
+        if audit:
+            lines.append("### Isolation audit")
+            lines.append("")
+            lines.append("Which workflow files each role's conversation actually opened (Read tool or shell), against what it was allowed to see.")
+            lines.append("")
+            for role, leaked in audit:
+                verdict = f"read forbidden file(s): {', '.join(leaked)}" if leaked else "clean"
+                lines.append(f"- {role}: {verdict}")
+            lines.append("")
+        gaps = orchestration_gaps(a["steps"])
+        if gaps:
+            lines.append("### Orchestration gaps")
+            lines.append("")
+            for sid, g in gaps.items():
+                lines.append(f"- {sid}: started {g:.0f}s after its last dependency closed")
+            lines.append("")
         if a["files"].get("report.md"):
             head = a["files"]["report.md"].strip().splitlines()
             lines.append("### report.md (first lines)")
