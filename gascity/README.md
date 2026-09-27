@@ -134,10 +134,15 @@ PRODUCT.md, no browser tool on the host. Same model and effort in both arms.
 
 What the numbers say:
 
-- The pack arm produced an equivalent critique. Scores differ by one `n/a`
-  (the pack's reviewer marked H9 n/a; the native one scored it 2) and by one
-  severity call (dead CTA as P0 vs P1). The findings, detector rules, persona
-  choices and questions are the same in substance.
+- The pack arm produced an equivalent critique. The eight heuristics both
+  arms scored got identical marks; the totals differ only because the pack's
+  reviewer marked H9 (Error Recovery) n/a where the native one scored it 2,
+  which is why the denominators differ (28 vs 32) and the percentages match
+  (68% vs 66%). The same five priority issues came out of both, with two
+  severity calls differing: the dead primary CTA is P0 in the pack and P1
+  natively, and the template-default visual identity is P1 in the pack
+  (detector-confirmed) and P2 natively. Detector rules, persona choices and
+  questions are the same in substance.
 - The extra time in the pack arm is harness overhead, not model work. Of its
   352s, 132s is the reconciler noticing a closed step and spawning the next
   session; take that out and the two arms did their model work in the same
