@@ -7,7 +7,7 @@
 # too, so the two arms end the same way.
 description = "Runs Impeccable's critique command natively; the skill spawns its own sub-agents."
 scope = "rig"
-option_defaults = { effort = "high" }
+option_defaults = { model = "claude-sonnet-5", effort = "high" }
 args = ["--disallowedTools", "AskUserQuestion"]
 
 [env]

@@ -242,7 +242,7 @@ export function emitPack({ out, packName, source, agents, sourceVersion, placeho
 export function emitBaselinePack({ out, packName, sourceVersion, installPath, apiUrl }) {
   fs.rmSync(out, { recursive: true, force: true });
   const base = path.join(TEMPLATES, 'baseline');
-  for (const rel of ['pack.toml', 'agents/runner/agent.toml', 'agents/runner/prompt.template.md', 'formulas/critique-native.toml']) {
+  for (const rel of ['pack.toml', 'agents/runner/agent.toml', 'agents/runner/prompt.template.md', 'formulas/critique-native.toml', 'formulas/build-native.toml']) {
     const body = fs.readFileSync(path.join(base, rel), 'utf8')
       .replace(/@@PACK@@/g, packName)
       .replace(/@@SOURCE_VERSION@@/g, sourceVersion)

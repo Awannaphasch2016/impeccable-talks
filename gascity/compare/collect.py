@@ -23,6 +23,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 import urllib.request
 from collections import Counter, defaultdict
@@ -287,6 +288,60 @@ def summarize(arm):
     }
 
 
+def parse_verdict(report):
+    """Pull the comparable numbers out of a conductor report.md.
+
+    The total line is the synthesized score. Priority counts come from the
+    tagged issue headings. Detector findings are whatever count the report
+    states; a report that never mentions findings leaves the cell blank.
+    """
+    total = maximum = None
+    match = re.search(r"\*\*(\d+)\s*/\s*(\d+)\*\*", report)
+    if match:
+        total, maximum = int(match.group(1)), int(match.group(2))
+    priorities = Counter(re.findall(r"\*\*\[P([0-3])\]", report))
+    findings = None
+    found = re.search(r"(\d+)\s+(?:findings|warnings)", report, re.IGNORECASE)
+    if found:
+        findings = int(found.group(1))
+    return {
+        "total": total,
+        "max": maximum,
+        "priorities": priorities,
+        "findings": findings,
+    }
+
+
+def render_scoreboard(arms):
+    """One row per critique. The verdict is report.md, not the reviewer draft."""
+    lines = [
+        "# Builder scoreboard",
+        "",
+        "Each row is one Impeccable critique of a page a builder produced. "
+        "The score is the conductor's report. A difference of one heuristic "
+        "is within the swing already seen on a single unchanged page.",
+        "",
+        "| Arm | Score | Percent | P0 | P1 | P2 | P3 | Detector findings | Critique wall | Output tokens |",
+        "|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for arm in arms:
+        verdict = parse_verdict(arm["files"].get("report.md", ""))
+        if verdict["total"] is None or not verdict["max"]:
+            score, percent = "-", "-"
+        else:
+            score = f"{verdict['total']}/{verdict['max']}"
+            percent = f"{round(100 * verdict['total'] / verdict['max'])}%"
+        pri = verdict["priorities"]
+        findings = "-" if verdict["findings"] is None else str(verdict["findings"])
+        lines.append(
+            f"| {arm['name']} | {score} | {percent} | "
+            f"{pri.get('0', 0)} | {pri.get('1', 0)} | {pri.get('2', 0)} | {pri.get('3', 0)} | "
+            f"{findings} | {arm['summary']['wall']} | {arm['summary']['usage'].get('output_tokens', 0):,} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def render(arms):
     lines = ["# Impeccable critique: native Claude sub-agents vs Gas City pack", ""]
     lines.append("| Metric | " + " | ".join(a["name"] for a in arms) + " |")
@@ -386,6 +441,8 @@ def main():
     ap.add_argument("--api", default=os.environ.get("IMPECCABLE_API", "http://127.0.0.1:8372/v0/city/factory"))
     ap.add_argument("--since", default=None, help="ISO timestamp; ignore events and transcripts older than this")
     ap.add_argument("--json", default=None, help="also write the raw collection here")
+    ap.add_argument("--scoreboard", action="store_true",
+                    help="print one row per arm from report.md instead of the full comparison")
     args = ap.parse_args()
     since = parse_ts(args.since) if args.since else None
 
@@ -407,7 +464,8 @@ def main():
         arm["summary"] = summarize(arm)
         arms.append(arm)
 
-    sys.stdout.write(render(arms) + "\n")
+    body = render_scoreboard(arms) if args.scoreboard else render(arms)
+    sys.stdout.write(body + "\n")
     if args.json:
         def default(o):
             if isinstance(o, datetime):

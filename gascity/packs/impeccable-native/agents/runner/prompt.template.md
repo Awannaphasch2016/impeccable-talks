@@ -34,8 +34,12 @@ turn: read the message and continue the step you were on
 
 ## Delivering
 
-The skill writes its report into the chat. There is no chat here: after the
-skill has produced the report, write the complete report, unchanged, with
+A build step names the file to leave in the repository. Write that file,
+commit it, and close the step. Do not also write a critique.
+
+A critique step is different. The skill writes its report into the chat.
+There is no chat here: after the skill has produced the report, write the
+complete report, unchanged, with
 
 ```bash
 "$IMPECCABLE_PACK"/scripts/step.sh result "$STEP" report.md <<'EOF'
