@@ -31,11 +31,35 @@ BUILD_TIMEOUT=${BUILD_TIMEOUT:-2700}
 FACTORY_TIMEOUT=${FACTORY_TIMEOUT:-3600}
 SCORE_TIMEOUT=${SCORE_TIMEOUT:-1800}
 DATE=$(date -u +%F)
-OUT=$GASTCITY/compare/results/${DATE}-builders
+# A restarted supervisor keeps the directory that already holds sling files,
+# so it waits on the workflow it already started instead of opening a second one.
+if [ -n "${RESULTS_DIR:-}" ]; then
+  OUT=$RESULTS_DIR
+else
+  OUT=""
+  for candidate in "$GASTCITY"/compare/results/*-builders; do
+    [ -d "$candidate" ] || continue
+    if [ ! -f "$candidate/scoreboard.md" ] && compgen -G "$candidate/sling-*.json" > /dev/null; then
+      OUT=$candidate
+    fi
+  done
+  if [ -z "$OUT" ]; then
+    OUT=$GASTCITY/compare/results/${DATE}-builders
+  fi
+fi
 mkdir -p "$OUT"
+DATE=$(basename "$OUT")
+DATE=${DATE%-builders}
 STATUS=$OUT/status.tsv
-printf 'arm\tbuild\tbuild_workflow\tscore_workflow\tnote\n' > "$STATUS"
+if [ ! -s "$STATUS" ]; then
+  printf 'arm\tbuild\tbuild_workflow\tscore_workflow\tnote\n' > "$STATUS"
+fi
 START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+if [ -f "$OUT/started.txt" ]; then
+  START=$(cat "$OUT/started.txt")
+else
+  printf '%s\n' "$START" > "$OUT/started.txt"
+fi
 
 log() { printf '\n== %s\n' "$*" | tee -a "$OUT/run.log" >&2; }
 
@@ -99,7 +123,7 @@ register_rig() {
   # See setup-rigs.sh: bd init against a fresh database on this server needs
   # the migration consent, and the prefix must not be an SQL reserved word.
   (cd "$CITY" && BD_ALLOW_REMOTE_MIGRATE=1 gc rig add "$PROJECTS/$name" \
-    --name "$name" --prefix "$prefix" --include "$PACKS/$pack" --default-branch main)
+    --name "$name" --prefix "$prefix" --include "$PACKS/$pack" --default-branch main) >&2
 }
 
 sling_json() {
@@ -131,29 +155,61 @@ print(data["id"])'
 }
 
 # Prints one line: <state> <note>
-# state is closed, blocked, or timeout
+# state is closed, blocked, failed, or timeout.
+# The runs API stays 503 while its projection warms, so the bead store is
+# the source the loop actually uses.
 wait_run() {
-  local root=$1 timeout=$2 factory=$3
-  python3 - "$root" "$timeout" "$factory" "$APPROVAL_GRACE" "$API" << 'PY'
-import json, sys, time, urllib.request
-root, timeout, factory, grace, api = sys.argv[1:]
+  local root=$1 dir=$2 timeout=$3 factory=$4
+  python3 - "$root" "$dir" "$timeout" "$factory" "$APPROVAL_GRACE" "$API" << 'PY'
+import json, subprocess, sys, time, urllib.request
+root, project, timeout, factory, grace, api = sys.argv[1:]
 timeout, grace = int(timeout), int(grace)
 factory = factory == "yes"
 approval_since = {}
+use_api = True
 
-def get(path):
-    req = urllib.request.Request(api + path, headers={"X-GC-Request": "1"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.load(resp)
+def from_api():
+    req = urllib.request.Request(api + f"/runs/{root}/steps", headers={"X-GC-Request": "1"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.load(resp).get("steps") or []
+
+def load_bead(bead):
+    raw = subprocess.check_output(["bd", "show", bead, "--json"], cwd=project, stderr=subprocess.DEVNULL)
+    data = json.loads(raw)
+    return data[0] if isinstance(data, list) else data
+
+def from_beads():
+    seen = set()
+    steps = []
+    def walk(bead):
+        if bead in seen:
+            return
+        seen.add(bead)
+        body = load_bead(bead)
+        for dep in body.get("dependencies") or []:
+            walk(dep["id"])
+        meta = body.get("metadata") or {}
+        steps.append({
+            "id": body.get("id"),
+            "title": body.get("title") or "",
+            "status": body.get("status") or "",
+            "assignee": body.get("assignee") or meta.get("assignee") or meta.get("gc.session_id") or "",
+        })
+    walk(root)
+    return steps
 
 deadline = time.time() + timeout
 while time.time() < deadline:
     try:
-        steps = get(f"/runs/{root}/steps").get("steps") or []
+        steps = from_api() if use_api else from_beads()
     except Exception as exc:
-        print(f"poll {root}: {exc}", file=sys.stderr)
-        time.sleep(15)
-        continue
+        use_api = False
+        try:
+            steps = from_beads()
+        except Exception as inner:
+            print(f"poll {root}: {exc}; beads: {inner}", file=sys.stderr)
+            time.sleep(15)
+            continue
     if not steps:
         time.sleep(15)
         continue
@@ -223,7 +279,7 @@ score_page() {
   json=$(sling_json "$name/impeccable.conductor" critique --formula --var target=index.html)
   printf '%s\n' "$json" > "$OUT/sling-score-$arm.json"
   root=$(printf '%s' "$json" | workflow_of)
-  state=$(wait_run "$root" "$SCORE_TIMEOUT" no || true)
+  state=$(wait_run "$root" "$dir" "$SCORE_TIMEOUT" no || true)
   printf '%s\n' "$root"
   printf '%s\n' "$state" > "$OUT/score-$arm.state"
 }
@@ -248,8 +304,21 @@ for spec in "${ARMS[@]}"; do
   fi
   register_rig "exp-$arm" "$prefix" "$pack"
 
+  if grep -q "^${arm}	" "$STATUS"; then
+    log "arm $arm already recorded; skipping"
+    continue
+  fi
+  root=""
+  if [ -f "$OUT/sling-$arm.json" ]; then
+    root=$(workflow_of < "$OUT/sling-$arm.json" || true)
+    if [ -n "$root" ]; then
+      log "resuming workflow $root"
+    fi
+  fi
   json=""
-  if [ "$mode" = "convoy" ]; then
+  if [ -n "$root" ]; then
+    :
+  elif [ "$mode" = "convoy" ]; then
     bead=$(create_work_bead "$dir")
     log "work bead $bead"
     json=$(sling_json "exp-$arm/$agent" "$bead" --on "$formula") || json=""
@@ -263,8 +332,10 @@ for spec in "${ARMS[@]}"; do
   else
     json=$(sling_json "exp-$arm/$agent" "$formula" --formula) || json=""
   fi
-  printf '%s\n' "$json" > "$OUT/sling-$arm.json"
-  root=$(printf '%s' "$json" | workflow_of || true)
+  if [ -n "$json" ]; then
+    printf '%s\n' "$json" > "$OUT/sling-$arm.json"
+    root=$(printf '%s' "$json" | workflow_of || true)
+  fi
   if [ -z "$root" ]; then
     record "$arm" sling-failed "" "" "sling produced no workflow id"
     continue
@@ -272,7 +343,7 @@ for spec in "${ARMS[@]}"; do
   log "workflow $root"
   factory=no
   [ "$arm" = "factory" ] && factory=yes
-  state=$(wait_run "$root" "$timeout" "$factory")
+  state=$(wait_run "$root" "$dir" "$timeout" "$factory")
   build_state=${state%%$'\t'*}
   note=${state#*$'\t'}
   log "$arm build $build_state ($note)"
