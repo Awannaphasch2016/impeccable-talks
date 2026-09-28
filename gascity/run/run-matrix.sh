@@ -36,7 +36,9 @@ VARIANTS=$GASTCITY/experiments/variants.tsv
 RIG=experiment
 PREFIX=xpr
 DIR=$PROJECTS/$RIG
-WT_ROOT=$DIR/.worktrees
+# gc worktree ensure refuses a path inside a registered worktree, and the
+# project checkout is one. The arm checkouts sit beside it.
+WT_ROOT=$PROJECTS/${RIG}-worktrees
 SCORE_DIR=$DIR/.score
 API_DIR=$DIR
 MODEL=claude-sonnet-5
@@ -579,7 +581,7 @@ PY
   echo "# Builder experiment $DATE"
   echo
   echo "Brief: experiments/brief.md. Rig: $RIG. Model pin: $MODEL. Started: $START."
-  echo "Each variant ran in its own worktree under .worktrees/, and the critiques ran together."
+  echo "Each variant ran in its own worktree under ${RIG}-worktrees/, and the critiques ran together."
   echo
   echo "## Build status"
   echo

@@ -193,7 +193,8 @@ The builder prompts name `site/index.html` and `docs/` at the repository
 root, so a formula variable cannot separate the variants. `run/run-matrix.sh`
 gives each variant a git worktree on `arm/<name>`, cut from the brief commit
 with `gc worktree ensure`, then slings every row before waiting for any of
-them. A fresh arm removes the previous worktree and branch first, because
+them. Those worktrees are siblings of the checkout (`<projects>/experiment-worktrees/`),
+because ensure refuses a path inside the checkout itself. A fresh arm removes the previous worktree and branch first, because
 `gc worktree ensure` checks an existing branch out again and leaves its
 commits in place. `coder.coder` is shared by the three mol formulas, so each
 of those work beads names its worktree and tells the agent to work there.
