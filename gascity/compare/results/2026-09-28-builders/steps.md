@@ -1,5 +1,7 @@
 # Cost by formula step 2026-09-28
 
+The same dollars, one row per arm and phase, are in `cost-map.md`.
+
 Dollars are Claude Code's cost snapshot for the session that ran the step. A session that ran one step keeps that whole snapshot. A session that ran several steps is split by the output tokens of the assistant turns inside each step's start-to-close window. `workflow-finalize` is on every formula and never calls the model, so it is $0 and omitted from the tables.
 
 The 29 closed sessions in `tokens.md` total $21.69. $20.87 of that falls on a formula step. The other $0.82 is a coder pool wake with no step ($0.20) and one manual conductor session ($0.62) opened while mol-scoped-work's synthesize step was unclaimed.
