@@ -70,7 +70,9 @@ def api_get(base, path):
 
 
 def cwd_slug(project_dir):
-    return os.path.abspath(project_dir).replace("/", "-")
+    # Claude Code's project directory replaces both slashes and dots.
+    # .score would otherwise stay a dot and miss ~/.claude/projects/*--score.
+    return os.path.abspath(project_dir).replace("/", "-").replace(".", "-")
 
 
 def load_events(city, run_id, since):
@@ -315,8 +317,22 @@ def parse_verdict(report):
     }
 
 
+def shared_transcripts(arms):
+    """True when every arm was handed the same Claude project directory.
+
+    Critiques that share a work_dir share ~/.claude/projects/<cwd>, so each
+    arm's transcript list is the whole pool. Printing that pool on every row
+    reads as six independent measurements of one number.
+    """
+    if len(arms) < 2:
+        return False
+    signatures = [tuple(t.get("path") for t in arm["transcripts"]) for arm in arms]
+    return len(set(signatures)) == 1 and len(signatures[0]) > 0
+
+
 def render_scoreboard(arms):
     """One row per critique. The verdict is report.md, not the reviewer draft."""
+    shared = shared_transcripts(arms)
     lines = [
         "# Builder scoreboard",
         "",
@@ -324,9 +340,17 @@ def render_scoreboard(arms):
         "The score is the conductor's report. A difference of one heuristic "
         "is within the swing already seen on a single unchanged page.",
         "",
-        "| Arm | Score | Percent | P0 | P1 | P2 | P3 | Detector findings | Critique wall | Output tokens |",
-        "|---|---|---|---|---|---|---|---|---|---|",
     ]
+    if shared:
+        lines.extend([
+            "| Arm | Score | Percent | P0 | P1 | P2 | P3 | Detector findings | Agent time |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ])
+    else:
+        lines.extend([
+            "| Arm | Score | Percent | P0 | P1 | P2 | P3 | Detector findings | Critique wall | Output tokens |",
+            "|---|---|---|---|---|---|---|---|---|---|",
+        ])
     for arm in arms:
         verdict = parse_verdict(arm["files"].get("report.md", ""))
         if verdict["total"] is None or not verdict["max"]:
@@ -336,11 +360,41 @@ def render_scoreboard(arms):
             percent = f"{round(100 * verdict['total'] / verdict['max'])}%"
         pri = verdict["priorities"]
         findings = "-" if verdict["findings"] is None else str(verdict["findings"])
+        if shared:
+            agent = arm["summary"].get("step_work_s")
+            tail = "-" if agent is None else f"{agent}s"
+        else:
+            tail = (
+                f"{arm['summary']['wall']} | "
+                f"{arm['summary']['usage'].get('output_tokens', 0):,}"
+            )
         lines.append(
             f"| {arm['name']} | {score} | {percent} | "
             f"{pri.get('0', 0)} | {pri.get('1', 0)} | {pri.get('2', 0)} | {pri.get('3', 0)} | "
-            f"{findings} | {arm['summary']['wall']} | {arm['summary']['usage'].get('output_tokens', 0):,} |"
+            f"{findings} | {tail} |"
         )
+    if shared:
+        pool = arms[0]["summary"]
+        tokens = pool.get("usage", {}).get("output_tokens", 0)
+        lines.append("")
+        lines.append(
+            f"The critiques shared one Claude project directory "
+            f"({pool.get('conversations', 0)} conversations). "
+            f"Transcript span {pool.get('wall', '-')}, output tokens {tokens:,}. "
+            "Those figures are the pool, not a per-arm measurement. "
+            "Agent time is the sum of that workflow's closed step durations."
+        )
+        waits = [
+            (arm["name"], arm["summary"].get("orchestration_gap_s") or 0)
+            for arm in arms
+            if (arm["summary"].get("orchestration_gap_s") or 0) >= 600
+        ]
+        if waits:
+            detail = "; ".join(f"{name} {gap}s" for name, gap in waits)
+            lines.append(
+                "Orchestration gap of 600s or more, counted outside agent time: "
+                f"{detail}."
+            )
     lines.append("")
     return "\n".join(lines)
 

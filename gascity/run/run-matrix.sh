@@ -555,14 +555,23 @@ while IFS=$'\t' read -r arm root page; do
   printf '%s\t%s\t%s\n' "$arm" "$root" "$score_root" >> "$OUT/scoring.tsv"
 done < "$OUT/to-score.tsv"
 
+# The three critique agents are shared. Suspending one workflow's session
+# while another critique is still on that session drops the later synthesize
+# step, so sessions are suspended only after every critique has closed.
+: > "$OUT/score-roots.txt"
 while IFS=$'\t' read -r arm root score_root; do
   [ -n "$arm" ] || continue
   log "waiting for critique $arm ($score_root)"
   state=$(wait_run "$score_root" "$API_DIR" "$SCORE_TIMEOUT" no)
   printf '%s\n' "$state" > "$OUT/score-$arm.state"
-  suspend_workflow "$score_root"
   record "$arm" closed "$root" "$score_root" "$WT_ROOT/$arm; score ${state%%$'\t'*}"
+  printf '%s\n' "$score_root" >> "$OUT/score-roots.txt"
 done < "$OUT/scoring.tsv"
+if [ -f "$OUT/score-roots.txt" ]; then
+  while IFS= read -r score_root; do
+    suspend_workflow "$score_root"
+  done < "$OUT/score-roots.txt"
+fi
 
 score_args=()
 while IFS= read -r spec; do

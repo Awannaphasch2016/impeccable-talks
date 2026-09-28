@@ -202,7 +202,11 @@ commits in place. `coder.coder` is shared by the three mol formulas, so each
 of those work beads names its worktree and tells the agent to work there.
 The critique copies each finished page to `.score/<arm>/index.html` and
 scores that file. Critiques run together; each report stays in its own
-`.impeccable/gc/<workflow>/` directory.
+`.impeccable/gc/<workflow>/` directory. The three critique agents are one
+shared pool, so their sessions stay up until every critique has closed.
+They also share `.score` as a working directory, so Claude transcripts for
+those critiques are one pool. `collect.py` prints that pool once and puts
+each workflow's own step time on the row.
 
 The factory arm is that implement step, slung at `factory.builder`, so this
 run has no approval gate. On the 2026-09-27 run (one rig per arm, the layout
