@@ -1,7 +1,6 @@
-Formulas dropped in this directory are the experiment rig's formulas_dir.
+Formulas in this directory are the experiment rig's formulas_dir.
 
 Gas City gives that directory priority over pack formulas for this rig only,
-matched by filename. A website-factory.toml here replaces the factory pack's
-formula when the experiment rig runs it, and leaves every other rig on the
-pack formula. The directory ships empty of toml: the variants in
-../variants.tsv already name the pack and city formulas.
+matched by filename. website-factory.toml here is the implement step alone,
+reading docs/brief.md. The factory pack's six-step formula stays in force for
+every other rig.

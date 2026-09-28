@@ -1,11 +1,9 @@
 # Formulas the experiment rig runs, one variant per row.
 # arm, agent (binding.agent), formula, mode (formula|convoy), timeout (build|factory)
-# Pack formulas (onepage, website-factory, build-native) and city formulas
-# (mol-*) are not copied here. The rig contains them by importing every
-# builder pack; a toml file in formulas/ overrides the pack formula of the
-# same filename for this rig only.
+# website-factory in formulas/ is the implement step only. The mol formulas
+# stay the city formulas; the work bead names each variant's worktree.
 onepage	onepage.builder	onepage	formula	build
-factory	factory.discoverer	website-factory	formula	factory
+factory	factory.builder	website-factory	formula	build
 mol-do-work	coder.coder	mol-do-work	convoy	build
 mol-scoped-work	coder.coder	mol-scoped-work	convoy	build
 mol-polecat-commit	coder.coder	mol-polecat-commit	convoy	build

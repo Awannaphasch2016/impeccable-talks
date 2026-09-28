@@ -1,0 +1,28 @@
+# Experiment rig only. formulas_dir overrides the factory pack's six-step
+# website-factory for this rig. generator-weaver-web keeps the pack formula.
+#
+# This is the implement step, and its input is the same brief the other
+# experiment formulas read.
+
+formula = "website-factory"
+description = "Build the page docs/brief.md describes. The experiment runs only this step."
+
+[requires]
+formula_compiler = ">=2.0.0"
+
+[vars.implement_agent]
+description = "Agent that builds the page. The default is the local factory builder."
+default = "factory.builder"
+
+[[steps]]
+id = "implement"
+title = "Implement the page"
+description = """
+Read docs/brief.md. It is the specification for this run. There is no
+requirements document and no wireframe, and nobody will answer a question.
+
+Write the page it describes as site/index.html: valid HTML, CSS in the file,
+and no request to another host. Commit it. Done when that file exists and
+git status is clean.
+"""
+metadata = { "gc.run_target" = "{{implement_agent}}" }

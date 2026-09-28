@@ -8,19 +8,19 @@
 # One rig, named experiment, holds every builder. Gas City has no rig type
 # field, so "experiment" is the shape experiment_rig.py writes into that
 # rig's [[rigs]] block: all five packs imported, formulas_dir pointed at
-# experiments/formulas, one session at a time, and the critique agents
-# working in a directory that contains only the page under test.
+# experiments/formulas, no session cap, each builder that owns one variant
+# working in that variant's worktree, and the critique agents working in
+# .score.
 #
-# Variants are the rows of experiments/variants.tsv. Each variant is checked
-# out as its own branch of the one repository, cut from the brief commit,
-# because the builder prompts name site/index.html and docs/ at the
-# repository root. A formula variable cannot move those paths.
-#
-# Arms run one at a time. factory's discover and review steps wait for a
-# human to approve on Telegram; if that approval is still missing after
-# APPROVAL_GRACE seconds, the arm is recorded as blocked and its session is
-# suspended so the next arm can use the subscription. Nothing here sends
-# the approval.
+# Variants are the rows of experiments/variants.tsv. The prompts write
+# site/index.html at the repository root, so each variant gets its own git
+# worktree on arm/<name>, cut from the brief commit by gc worktree ensure,
+# before any of them is slung. The script then slings every row and only
+# afterwards polls. coder.coder is shared by the three mol formulas, so
+# those work beads name the worktree. The factory row slings
+# website-factory, which formulas_dir replaces with the implement step:
+# it reads docs/brief.md and writes site/index.html. Nothing here sends a
+# Telegram approval.
 #
 # Writes <gascity-dir>/compare/results/<utc-date>-builders/scoreboard.md
 
@@ -36,6 +36,7 @@ VARIANTS=$GASTCITY/experiments/variants.tsv
 RIG=experiment
 PREFIX=xpr
 DIR=$PROJECTS/$RIG
+WT_ROOT=$DIR/.worktrees
 SCORE_DIR=$DIR/.score
 API_DIR=$DIR
 MODEL=claude-sonnet-5
@@ -103,15 +104,17 @@ prepare_project() {
   if [ ! -d "$DIR/.git" ]; then
     mkdir -p "$DIR/docs"
     cp "$BRIEF" "$DIR/docs/brief.md"
-    printf '.gc/\n.impeccable/\n.score/\n.claude/\narms/\nnode_modules/\n' > "$DIR/.gitignore"
+    printf '.gc/\n.impeccable/\n.score/\n.worktrees/\n.claude/\narms/\nnode_modules/\n' > "$DIR/.gitignore"
     git -C "$DIR" init -q -b main
     git -C "$DIR" add -A
     commit_as "$DIR" "Experiment brief"
   else
     git -C "$DIR" checkout -f main
     mkdir -p "$DIR/docs"
+    rm -rf "$DIR/.claude"
     cp "$BRIEF" "$DIR/docs/brief.md"
-    git -C "$DIR" add docs/brief.md >/dev/null
+    printf '.gc/\n.impeccable/\n.score/\n.worktrees/\n.claude/\narms/\nnode_modules/\n' > "$DIR/.gitignore"
+    git -C "$DIR" add docs/brief.md .gitignore >/dev/null
     commit_as "$DIR" "Refresh experiment brief"
   fi
 }
@@ -132,8 +135,10 @@ register_experiment() {
   else
     log "rig $RIG already registered"
   fi
+  mkdir -p "$SCORE_DIR" "$WT_ROOT"
   python3 "$GASTCITY/run/experiment_rig.py" \
-    "$CITY/city.toml" "$RIG" "$GASTCITY/experiments/formulas" "$SCORE_DIR"
+    "$CITY/city.toml" "$RIG" "$GASTCITY/experiments/formulas" "$SCORE_DIR" \
+    "$WT_ROOT" "$GASTCITY/experiments/prompts/factory-builder.md"
 }
 
 sling_json() {
@@ -150,18 +155,38 @@ data=json.loads(raw[start:])
 print(data.get("workflow_id") or data.get("bead_id") or "")'
 }
 
-create_work_bead() {
-  local arm=$1
-  (cd "$DIR" && bd create "Build the landing page ($arm)" --body-file docs/brief.md --json) \
-    | python3 -c 'import json,sys
-raw=sys.stdin.read()
-start=raw.find("{")
-if start < 0:
-    start=raw.find("[")
-data=json.loads(raw[start:])
-if isinstance(data, list):
-    data=data[0]
-print(data["id"])'
+create_bead() {
+  local title=$1 body=$2
+  local id
+  id=$(cd "$DIR" && bd create "$title" --body-file "$body" --silent)
+  id=$(printf '%s' "$id" | tr -d '[:space:]')
+  if [ -z "$id" ]; then
+    echo "bd create produced no id for $title" >&2
+    return 1
+  fi
+  printf '%s\n' "$id"
+}
+
+# mol-scoped-work and mol-polecat-commit treat metadata.work_dir as a
+# temporary worktree and delete it when they finish. The experiment worktree
+# is named in the bead text instead, so that cleanup cannot remove it.
+write_assignment() {
+  local arm=$1 dest=$2
+  {
+    printf '%s\n' \
+      "The first command you run is:" \
+      "" \
+      "cd $WT_ROOT/$arm" \
+      "" \
+      "Every later command runs in that directory. Write only inside that directory." \
+      "Read docs/brief.md there. It is the specification. The brief is closed." \
+      "Write the page it describes as site/index.html in that directory: valid HTML, CSS in the file, and no request to another host." \
+      "Commit it there. Done when that file exists and git status in that directory is clean." \
+      "" \
+      "The brief follows." \
+      ""
+    cat "$BRIEF"
+  } > "$dest"
 }
 
 # Prints one line: <state> <note>
@@ -291,22 +316,89 @@ PY
 )
 }
 
-checkout_arm() {
+drop_worktree() {
+  local path=$1 branch=$2
+  local current
+  current=$(git -C "$DIR" rev-parse --abbrev-ref HEAD)
+  if [ "$current" = "$branch" ]; then
+    git -C "$DIR" checkout -f main
+  fi
+  if git -C "$DIR" worktree list --porcelain | grep -Fxq "worktree $path"; then
+    git -C "$DIR" worktree remove --force "$path"
+  fi
+  if [ -e "$path" ]; then
+    rm -rf "$path"
+  fi
+  git -C "$DIR" worktree prune
+  if git -C "$DIR" show-ref --verify --quiet "refs/heads/$branch"; then
+    git -C "$DIR" branch -D "$branch"
+  fi
+}
+
+# resume=yes reuses the bead id already bound to the worktree. A fresh arm
+# deletes the old worktree and branch first: gc worktree ensure checks an
+# existing branch out again and does not reset it to the brief, and
+# gc worktree cleanup refuses commits that are not merged into the base.
+ensure_worktree() {
   local arm=$1 resume=$2
-  if [ "$resume" = yes ]; then
-    # A failed checkout must not reset the branch: the in-progress tree is
-    # the run being resumed.
-    git -C "$DIR" checkout "arm/$arm"
+  local path branch bead_file bead body json
+  path=$WT_ROOT/$arm
+  branch=arm/$arm
+  bead_file=$OUT/worktree-$arm.bead
+  mkdir -p "$WT_ROOT"
+  if [ "$resume" != yes ]; then
+    drop_worktree "$path" "$branch"
+    rm -f "$bead_file"
+  fi
+  if [ -s "$bead_file" ]; then
+    bead=$(tr -d '[:space:]' < "$bead_file")
+  elif [ "$resume" = yes ]; then
+    return 2
   else
-    git -C "$DIR" checkout -f -B "arm/$arm" "$BRIEF_COMMIT"
+    body=$OUT/worktree-$arm.md
+    printf 'Worktree %s for experiment arm %s.\n' "$path" "$arm" > "$body"
+    bead=$(create_bead "Worktree $branch" "$body")
+    printf '%s\n' "$bead" > "$bead_file"
   fi
-  # The skill install is untracked. Leave it in place only for the arm that
-  # reads it, so the other builders do not see Impeccable's Claude build.
-  rm -rf "$DIR/.claude"
+  if ! json=$(cd "$CITY" && gc worktree ensure \
+    --repo "$DIR" \
+    --root "$WT_ROOT" \
+    --path "$path" \
+    --branch "$branch" \
+    --base "$BRIEF_COMMIT" \
+    --base-sha "$BRIEF_COMMIT" \
+    --bead "$bead" \
+    --store-ref experiment \
+    --creator run-matrix \
+    --owner experiment \
+    --generation 1 \
+    --lifecycle active \
+    --json); then
+    return 1
+  fi
+  printf '%s\n' "$json" > "$OUT/worktree-$arm.json"
+  # The skill install is untracked. It belongs only in the arm that reads it.
   if [ "$arm" = "impeccable-build" ] && [ -d "$PACKS/impeccable-native/claude-build/.claude" ]; then
-    mkdir -p "$DIR/.claude"
-    cp -R "$PACKS/impeccable-native/claude-build/.claude/." "$DIR/.claude/"
+    mkdir -p "$path/.claude"
+    cp -R "$PACKS/impeccable-native/claude-build/.claude/." "$path/.claude/"
   fi
+}
+
+sling_arm() {
+  local arm=$1 agent=$2 formula=$3 mode=$4
+  local json="" body bead
+  if [ "$mode" = "convoy" ]; then
+    body=$OUT/assignment-$arm.md
+    write_assignment "$arm" "$body"
+    bead=$(create_bead "Build the landing page ($arm)" "$body")
+    log "work bead $bead"
+    json=$(sling_json "$RIG/$agent" "$bead" --on "$formula") || json=""
+  elif [ "$arm" = "onepage" ]; then
+    json=$(sling_json "$RIG/$agent" "$formula" --formula --var "build_model=$MODEL") || json=""
+  else
+    json=$(sling_json "$RIG/$agent" "$formula" --formula) || json=""
+  fi
+  printf '%s\n' "$json"
 }
 
 find_page() {
@@ -326,22 +418,26 @@ find_page() {
 }
 
 stage_score_page() {
-  local page=$1
-  mkdir -p "$SCORE_DIR"
-  find "$SCORE_DIR" -mindepth 1 -maxdepth 1 ! -name .impeccable -exec rm -rf {} +
-  cp "$page" "$SCORE_DIR/index.html"
+  local arm=$1 page=$2
+  mkdir -p "$SCORE_DIR/$arm" "$OUT/pages/$arm"
+  cp "$page" "$OUT/pages/$arm/index.html"
+  cp "$page" "$SCORE_DIR/$arm/index.html"
 }
 
-score_page() {
+sling_score() {
   local arm=$1
+  local json root
+  if [ -f "$OUT/sling-score-$arm.json" ]; then
+    root=$(workflow_of < "$OUT/sling-score-$arm.json" || true)
+    if [ -n "$root" ]; then
+      printf '%s\n' "$root"
+      return 0
+    fi
+  fi
   log "scoring $arm"
-  local json root state
-  json=$(sling_json "$RIG/impeccable.conductor" critique --formula --var target=index.html)
+  json=$(sling_json "$RIG/impeccable.conductor" critique --formula --var "target=$arm/index.html") || json=""
   printf '%s\n' "$json" > "$OUT/sling-score-$arm.json"
-  root=$(printf '%s' "$json" | workflow_of)
-  state=$(wait_run "$root" "$API_DIR" "$SCORE_TIMEOUT" no || true)
-  printf '%s\n' "$root"
-  printf '%s\n' "$state" > "$OUT/score-$arm.state"
+  printf '%s\n' "$json" | workflow_of
 }
 
 record() {
@@ -358,21 +454,34 @@ else
 fi
 register_experiment
 
+: > "$OUT/pending.tsv"
+python3 - "$VARIANTS" "$STATUS" > "$OUT/pending.tsv" << 'PY'
+import sys
+variants, status = sys.argv[1:]
+done = set()
+for line in open(status, encoding="utf-8").read().splitlines()[1:]:
+    if line.strip():
+        done.add(line.split("\t", 1)[0])
+for raw in open(variants, encoding="utf-8"):
+    line = raw.strip()
+    if not line or line.startswith("#"):
+        continue
+    parts = line.split("\t")
+    if parts[0] == "arm" or parts[0] in done:
+        continue
+    if len(parts) != 5:
+        raise SystemExit(f"bad variant row: {line}")
+    print("\t".join(parts))
+PY
+
+: > "$OUT/inflight.tsv"
 while IFS=$'\t' read -r arm agent formula mode timeout_class; do
-  case "$arm" in
-    ""|\#*) continue ;;
-    arm) continue ;;
-  esac
-  log "arm $arm"
+  [ -n "$arm" ] || continue
+  log "sling $arm"
   if [ "$timeout_class" = "factory" ]; then
     timeout=$FACTORY_TIMEOUT
   else
     timeout=$BUILD_TIMEOUT
-  fi
-
-  if grep -q "^${arm}	" "$STATUS"; then
-    log "arm $arm already recorded; skipping"
-    continue
   fi
   root=""
   resume=no
@@ -383,61 +492,72 @@ while IFS=$'\t' read -r arm agent formula mode timeout_class; do
       resume=yes
     fi
   fi
-  checkout_arm "$arm" "$resume"
-  json=""
-  if [ -n "$root" ]; then
-    :
-  elif [ "$mode" = "convoy" ]; then
-    bead=$(create_work_bead "$arm")
-    log "work bead $bead"
-    json=$(sling_json "$RIG/$agent" "$bead" --on "$formula") || json=""
-  elif [ "$arm" = "onepage" ]; then
-    json=$(sling_json "$RIG/$agent" "$formula" --formula --var "build_model=$MODEL") || json=""
-  elif [ "$arm" = "factory" ]; then
-    json=$(sling_json "$RIG/$agent" "$formula" --formula \
-      --var "discover_model=$MODEL" --var "write_tests_model=$MODEL" \
-      --var "implement_model=$MODEL" --var "review_model=$MODEL" \
-      --var "verification_doc_model=$MODEL" --var "deliver_model=$MODEL") || json=""
-  else
-    json=$(sling_json "$RIG/$agent" "$formula" --formula) || json=""
+  code=0
+  ensure_worktree "$arm" "$resume" || code=$?
+  if [ "$code" != 0 ]; then
+    if [ "$code" = 2 ]; then
+      record "$arm" worktree-failed "" "" "resume is missing the worktree bead id"
+    else
+      record "$arm" worktree-failed "" "" "gc worktree ensure failed for arm/$arm"
+    fi
+    continue
   fi
-  if [ -n "$json" ]; then
-    printf '%s\n' "$json" > "$OUT/sling-$arm.json"
-    root=$(printf '%s' "$json" | workflow_of || true)
+  if [ -z "$root" ]; then
+    json=$(sling_arm "$arm" "$agent" "$formula" "$mode")
+    if [ -n "$json" ]; then
+      printf '%s\n' "$json" > "$OUT/sling-$arm.json"
+      root=$(printf '%s' "$json" | workflow_of || true)
+    fi
   fi
   if [ -z "$root" ]; then
     record "$arm" sling-failed "" "" "sling produced no workflow id"
     continue
   fi
   log "workflow $root"
-  factory=no
-  [ "$arm" = "factory" ] && factory=yes
-  state=$(wait_run "$root" "$API_DIR" "$timeout" "$factory")
+  printf '%s\t%s\t%s\n' "$arm" "$timeout" "$root" >> "$OUT/inflight.tsv"
+done < "$OUT/pending.tsv"
+
+: > "$OUT/to-score.tsv"
+while IFS=$'\t' read -r arm timeout root; do
+  [ -n "$arm" ] || continue
+  log "waiting for $arm ($root)"
+  state=$(wait_run "$root" "$API_DIR" "$timeout" no)
   build_state=${state%%$'\t'*}
   note=${state#*$'\t'}
   log "$arm build $build_state ($note)"
   suspend_workflow "$root"
-  if [ "$build_state" = "blocked" ]; then
-    record "$arm" blocked "$root" "" "$note"
-    continue
-  fi
   if [ "$build_state" != "closed" ]; then
     record "$arm" "$build_state" "$root" "" "$note"
     continue
   fi
-  page=$(find_page "$DIR")
+  page=$(find_page "$WT_ROOT/$arm")
   if [ -z "$page" ]; then
     record "$arm" no-page "$root" "" "no index.html to score"
     continue
   fi
-  mkdir -p "$OUT/pages/$arm"
-  cp "$page" "$OUT/pages/$arm/index.html"
-  stage_score_page "$page"
-  score_root=$(score_page "$arm")
+  stage_score_page "$arm" "$page"
+  printf '%s\t%s\t%s\n' "$arm" "$root" "$page" >> "$OUT/to-score.tsv"
+done < "$OUT/inflight.tsv"
+
+: > "$OUT/scoring.tsv"
+while IFS=$'\t' read -r arm root page; do
+  [ -n "$arm" ] || continue
+  score_root=$(sling_score "$arm")
+  if [ -z "$score_root" ]; then
+    record "$arm" closed "$root" "" "$page; critique sling produced no workflow id"
+    continue
+  fi
+  printf '%s\t%s\t%s\n' "$arm" "$root" "$score_root" >> "$OUT/scoring.tsv"
+done < "$OUT/to-score.tsv"
+
+while IFS=$'\t' read -r arm root score_root; do
+  [ -n "$arm" ] || continue
+  log "waiting for critique $arm ($score_root)"
+  state=$(wait_run "$score_root" "$API_DIR" "$SCORE_TIMEOUT" no)
+  printf '%s\n' "$state" > "$OUT/score-$arm.state"
   suspend_workflow "$score_root"
-  score_state=$(cat "$OUT/score-$arm.state")
-  record "$arm" closed "$root" "$score_root" "$page; score ${score_state%%$'\t'*}"
-done < "$VARIANTS"
+  record "$arm" closed "$root" "$score_root" "$WT_ROOT/$arm; score ${state%%$'\t'*}"
+done < "$OUT/scoring.tsv"
 
 score_args=()
 while IFS= read -r spec; do
@@ -459,6 +579,7 @@ PY
   echo "# Builder experiment $DATE"
   echo
   echo "Brief: experiments/brief.md. Rig: $RIG. Model pin: $MODEL. Started: $START."
+  echo "Each variant ran in its own worktree under .worktrees/, and the critiques ran together."
   echo
   echo "## Build status"
   echo

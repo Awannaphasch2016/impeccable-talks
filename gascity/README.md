@@ -175,10 +175,14 @@ that holds every builder under test:
 
 - one repository, one bead prefix, one Dolt database
 - imports of `onepage`, `factory`, `coder`, `impeccable`, and `impeccable-native`
-- `formulas_dir` at `experiments/formulas/`, which is empty of toml until a
-  variant needs a formula the packs do not ship; a file there overrides the
-  pack formula of the same name for this rig only
-- `max_active_sessions = 1`
+- `formulas_dir` at `experiments/formulas/`. `website-factory.toml` there is
+  the implement step only: it reads `docs/brief.md` and writes
+  `site/index.html`. That file overrides the pack formula for this rig.
+  generator-weaver-web keeps the six-step formula.
+- sessions uncapped, so every slung formula can start together
+- `onepage.builder`, `factory.builder`, and `impeccable-native.runner` each
+  have `work_dir` set to that variant's worktree. `factory.builder`'s prompt
+  is the experiment prompt, which reads `docs/brief.md`.
 - the three critique agents' `work_dir` set to `<rig>/.score`
 
 `experiments/variants.tsv` is the list of formulas that rig runs. Adding a
@@ -187,17 +191,21 @@ variant is a row. Adding a pack the row's agent comes from is the only time
 
 The builder prompts name `site/index.html` and `docs/` at the repository
 root, so a formula variable cannot separate the variants. `run/run-matrix.sh`
-checks each variant out as `arm/<name>`, cut from the brief commit, and
-checks the next variant out only after suspending the one that just finished.
-The critique reads a copy of the page in `.score`, which holds that file and
-nothing else.
+gives each variant a git worktree on `arm/<name>`, cut from the brief commit
+with `gc worktree ensure`, then slings every row before waiting for any of
+them. A fresh arm removes the previous worktree and branch first, because
+`gc worktree ensure` checks an existing branch out again and leaves its
+commits in place. `coder.coder` is shared by the three mol formulas, so each
+of those work beads names its worktree and tells the agent to work there.
+The critique copies each finished page to `.score/<arm>/index.html` and
+scores that file. Critiques run together; each report stays in its own
+`.impeccable/gc/<workflow>/` directory.
 
-Factory's discover and review steps stay open until a person sends `APPROVED`
-on Telegram; the script records that arm as blocked and does not approve it.
-On the 2026-09-27 run (one rig per arm, the layout this replaces) the
-discoverer did publish `APPROVAL_NEEDED: requirements`, and the bridge dropped
-it because `exp-factory` has no roster, so Telegram had nothing pending to
-approve. That scoreboard is
+The factory arm is that implement step, slung at `factory.builder`, so this
+run has no approval gate. On the 2026-09-27 run (one rig per arm, the layout
+this replaces) the discoverer did publish `APPROVAL_NEEDED: requirements`,
+and the bridge dropped it because `exp-factory` has no roster, so Telegram
+had nothing pending to approve. That scoreboard is
 `compare/results/2026-09-27-builders/scoreboard.md`. One critique per page, so
 a difference of one heuristic is the same noise already seen when the same
 file was scored twice.
