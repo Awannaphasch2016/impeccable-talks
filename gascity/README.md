@@ -168,16 +168,36 @@ What the numbers say:
   explicit allow list is the next step and needs a test that `step.sh`'s Bash
   calls still pass.
 
-## Builder scoreboard
+## Experiment rig
 
-`run/run-matrix.sh` runs six builders against `experiments/brief.md`, one at a
-time, on `claude-sonnet-5` at high effort, then scores each finished
-`site/index.html` with the `impeccable` critique pack in its own project (so
-snapshot slugs do not collide). Factory's discover and review steps stay open
-until a person sends `APPROVED` on Telegram; the script records that arm as
-blocked and does not approve it. On this run the discoverer did publish
-`APPROVAL_NEEDED: requirements`, and the bridge dropped it because
-`exp-factory` has no roster, so Telegram had nothing pending to approve. The first sample is
+Gas City rigs have no type field. An experiment rig is one `[[rigs]]` entry
+that holds every builder under test:
+
+- one repository, one bead prefix, one Dolt database
+- imports of `onepage`, `factory`, `coder`, `impeccable`, and `impeccable-native`
+- `formulas_dir` at `experiments/formulas/`, which is empty of toml until a
+  variant needs a formula the packs do not ship; a file there overrides the
+  pack formula of the same name for this rig only
+- `max_active_sessions = 1`
+- the three critique agents' `work_dir` set to `<rig>/.score`
+
+`experiments/variants.tsv` is the list of formulas that rig runs. Adding a
+variant is a row. Adding a pack the row's agent comes from is the only time
+`gc rig add` has to change.
+
+The builder prompts name `site/index.html` and `docs/` at the repository
+root, so a formula variable cannot separate the variants. `run/run-matrix.sh`
+checks each variant out as `arm/<name>`, cut from the brief commit, and
+checks the next variant out only after suspending the one that just finished.
+The critique reads a copy of the page in `.score`, which holds that file and
+nothing else.
+
+Factory's discover and review steps stay open until a person sends `APPROVED`
+on Telegram; the script records that arm as blocked and does not approve it.
+On the 2026-09-27 run (one rig per arm, the layout this replaces) the
+discoverer did publish `APPROVAL_NEEDED: requirements`, and the bridge dropped
+it because `exp-factory` has no roster, so Telegram had nothing pending to
+approve. That scoreboard is
 `compare/results/2026-09-27-builders/scoreboard.md`. One critique per page, so
 a difference of one heuristic is the same noise already seen when the same
 file was scored twice.
