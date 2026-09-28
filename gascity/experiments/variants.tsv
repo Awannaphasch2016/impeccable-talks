@@ -2,7 +2,7 @@
 # arm, agent (binding.agent), formula, mode (formula|convoy), timeout (build|factory)
 # website-factory in formulas/ is the implement step only. The mol formulas
 # stay the city formulas; the work bead names each variant's worktree.
-onepage	onepage.builder	onepage	formula	build
+onepage	experiment-page.onepage	onepage	formula	build
 factory	factory.builder	website-factory	formula	build
 mol-do-work	coder.coder	mol-do-work	convoy	build
 mol-scoped-work	coder.coder	mol-scoped-work	convoy	build

@@ -180,9 +180,11 @@ that holds every builder under test:
   `site/index.html`. That file overrides the pack formula for this rig.
   generator-weaver-web keeps the six-step formula.
 - sessions uncapped, so every slung formula can start together
-- `onepage.builder`, `factory.builder`, and `impeccable-native.runner` each
-  have `work_dir` set to that variant's worktree. `factory.builder`'s prompt
-  is the experiment prompt, which reads `docs/brief.md`.
+- `experiment-page.onepage`, `factory.builder`, and `impeccable-native.runner`
+  each have `work_dir` set to that variant's worktree. Patches name the
+  agent's local name. The onepage pack's builder is also named `builder`, so
+  the onepage arm is a separate agent, `experiment-page.onepage`. The factory
+  builder's prompt is the experiment prompt, which reads `docs/brief.md`.
 - the three critique agents' `work_dir` set to `<rig>/.score`
 
 `experiments/variants.tsv` is the list of formulas that rig runs. Adding a

@@ -1,0 +1,25 @@
+# Experiment rig only. The pack formula targets onepage.builder. This rig
+# runs the same step on experiment-page.onepage, whose local name is unique,
+# so the rig can set that agent's work directory.
+
+formula = "onepage"
+description = "Build a single self-contained landing page from the brief."
+
+[requires]
+formula_compiler = ">=2.0.0"
+
+[vars.build_model]
+description = "Model for the build step; empty uses the builder's default"
+default = ""
+
+[[steps]]
+id = "build"
+title = "Build the landing page"
+description = """
+Read docs/brief.md and write the landing page it describes as site/index.html.
+
+Done when site/index.html is a complete, valid HTML page covering every section
+the brief names, with inline CSS and nothing loaded from another host, and it
+is committed with a clean tree.
+"""
+metadata = { "gc.run_target" = "experiment-page.onepage", "opt_model" = "{{build_model}}" }

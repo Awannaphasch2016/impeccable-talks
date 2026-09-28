@@ -1,0 +1,8 @@
+description = "Turns docs/brief.md into one self-contained landing page."
+scope = "rig"
+option_defaults = { model = "claude-sonnet-5", effort = "high" }
+
+# Labels this agent's Claude Code telemetry. gc derives gc.agent from its own
+# process environment, which under the supervisor names no agent.
+[env]
+OTEL_RESOURCE_ATTRIBUTES = "gc.agent=experiment-page.onepage"

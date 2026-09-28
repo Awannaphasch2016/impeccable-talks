@@ -87,13 +87,15 @@ install_packs() {
   cp "$GASTCITY/packs/impeccable-native/formulas/build-native.toml" "$PACKS/impeccable-native/formulas/"
   cp "$GASTCITY/packs/impeccable-native/agents/runner/agent.toml" "$PACKS/impeccable-native/agents/runner/"
   cp "$GASTCITY/packs/impeccable-native/agents/runner/prompt.template.md" "$PACKS/impeccable-native/agents/runner/"
+  rm -rf "$PACKS/experiment-page"
+  cp -R "$GASTCITY/packs/experiment-page" "$PACKS/experiment-page"
   if [ ! -d "$PACKS/impeccable-native/claude-build/.claude" ]; then
     log "impeccable-native claude-build is missing; the impeccable-build arm cannot run"
   fi
   if [ ! -d "$PACKS/impeccable" ]; then
     cp -R "$GASTCITY/packs/impeccable" "$PACKS/impeccable"
   fi
-  (cd "$CITY" && gc lint "$PACKS/coder" && gc lint "$PACKS/impeccable-native")
+  (cd "$CITY" && gc lint "$PACKS/coder" && gc lint "$PACKS/impeccable-native" && gc lint "$PACKS/experiment-page")
 }
 
 commit_as() {
@@ -140,7 +142,8 @@ register_experiment() {
   mkdir -p "$SCORE_DIR" "$WT_ROOT"
   python3 "$GASTCITY/run/experiment_rig.py" \
     "$CITY/city.toml" "$RIG" "$GASTCITY/experiments/formulas" "$SCORE_DIR" \
-    "$WT_ROOT" "$GASTCITY/experiments/prompts/factory-builder.md"
+    "$WT_ROOT" "$GASTCITY/experiments/prompts/factory-builder.md" \
+    "$PACKS/experiment-page"
 }
 
 sling_json() {
