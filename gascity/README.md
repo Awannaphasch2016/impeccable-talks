@@ -175,7 +175,9 @@ time, on `claude-sonnet-5` at high effort, then scores each finished
 `site/index.html` with the `impeccable` critique pack in its own project (so
 snapshot slugs do not collide). Factory's discover and review steps stay open
 until a person sends `APPROVED` on Telegram; the script records that arm as
-blocked and does not approve it. The first sample is
+blocked and does not approve it. On this run the discoverer did publish
+`APPROVAL_NEEDED: requirements`, and the bridge dropped it because
+`exp-factory` has no roster, so Telegram had nothing pending to approve. The first sample is
 `compare/results/2026-09-27-builders/scoreboard.md`. One critique per page, so
 a difference of one heuristic is the same noise already seen when the same
 file was scored twice.

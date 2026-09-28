@@ -13,6 +13,8 @@ Brief: experiments/brief.md. Model pin: claude-sonnet-5. Started: 2026-09-27T18:
 | mol-polecat-commit | closed | emc-1hk | smc-tcp | /opt/gascity/projects/exp-mol-polecat-commit/site/index.html; score closed |
 | impeccable-build | closed | eib-jov | sib-fae | /opt/gascity/projects/exp-impeccable-build/site/index.html; score closed |
 
+Factory's discover step is still open. At 18:25 UTC the discoverer published `APPROVAL_NEEDED: requirements` for Harbor Ledger into the `exp-factory` conversation. That project has no `roster.json`, so the bridge did not create an approval anyone can answer. What reached the existing factory chats at 1:25 was: nobody holds the requirements responsibility, and nothing was changed. Replying `Approve` in Karant or Social media manager goes to the landing-page builder, which never sent an `APPROVAL_NEEDED`. The row says blocked because the script stopped the arm after 1200s with the step still in progress, then suspended the discoverer.
+
 # Builder scoreboard
 
 Each row is one Impeccable critique of a page a builder produced. The score is the conductor's report. A difference of one heuristic is within the swing already seen on a single unchanged page.
