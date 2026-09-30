@@ -1,0 +1,88 @@
+# Experiment rig only. A new filename does not replace website-factory.toml.
+#
+# Plan, then a project-manager gate, then review, then a developer gate and a
+# project-manager gate, then finish. The approval is its own step after the
+# work it approves: one step can carry only one [steps.gate] table.
+#
+# plan, review, and finish are shell writes the city runs. They are check
+# steps with no assignee and no gc.run_target, and their type is step so a
+# poured work bead is not session work. The verify script fails if one of
+# those beads has a session assignee. Nothing here routes them to coder.coder.
+
+formula = "approval"
+description = "Write a plan, wait for a project manager, write a review, wait for a developer and a project manager, then finish."
+
+[requires]
+formula_compiler = ">=2.0.0"
+
+[vars.run]
+description = "Directory name for this run's files, so two slings do not share them."
+required = true
+
+[[steps]]
+id = "plan"
+title = "Write the plan"
+description = "The city writes {{run}}/plan.txt."
+type = "step"
+[steps.check]
+max_attempts = 1
+[steps.check.check]
+mode = "exec"
+path = "../assets/scripts/checks/write-run-file.sh"
+timeout = "30s"
+
+[[steps]]
+id = "plan-approve"
+title = "Project manager approves the plan"
+description = "Wait until a project manager resolves this gate."
+type = "step"
+needs = ["plan"]
+[steps.gate]
+type = "human"
+id = "plan-approve"
+
+[[steps]]
+id = "review"
+title = "Write the review"
+description = "The city writes {{run}}/review.txt."
+type = "step"
+needs = ["plan-approve"]
+[steps.check]
+max_attempts = 1
+[steps.check.check]
+mode = "exec"
+path = "../assets/scripts/checks/write-run-file.sh"
+timeout = "30s"
+
+[[steps]]
+id = "review-approve-dev"
+title = "Developer approves the review"
+description = "Wait until a developer resolves this gate."
+type = "step"
+needs = ["review"]
+[steps.gate]
+type = "human"
+id = "review-approve-dev"
+
+[[steps]]
+id = "review-approve-pm"
+title = "Project manager approves the review"
+description = "Wait until a project manager resolves this gate."
+type = "step"
+needs = ["review"]
+[steps.gate]
+type = "human"
+id = "review-approve-pm"
+
+[[steps]]
+id = "finish"
+title = "Write the done marker"
+description = "The city writes {{run}}/done.txt."
+type = "step"
+needs = ["review-approve-dev", "review-approve-pm"]
+[steps.check]
+max_attempts = 1
+[steps.check.check]
+mode = "exec"
+path = "../assets/scripts/checks/write-run-file.sh"
+timeout = "30s"
