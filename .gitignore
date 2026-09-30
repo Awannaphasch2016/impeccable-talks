@@ -15,3 +15,7 @@ npm-debug.log*
 # Editor / OS cruft
 *.log
 Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
