@@ -1,0 +1,2 @@
+description = "Publish the message on stdin into this rig's Telegram conversation"
+run = "../../scripts/reply.sh"

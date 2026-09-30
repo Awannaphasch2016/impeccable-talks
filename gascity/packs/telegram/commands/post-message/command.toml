@@ -1,0 +1,2 @@
+description = "Post plain text to a Telegram chat through the supervised adapter"
+run = "../post-message.sh"

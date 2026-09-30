@@ -1,0 +1,3 @@
+__pycache__/
+*.pyc
+adapter/gc-telegram-adapter

@@ -1,0 +1,27 @@
+# telegram — the Gas City Telegram UI.
+#
+# Shaped after slack-mini in gastownhall/gascity-packs: gc supervises one
+# adapter process, and one command posts back out through that process so the
+# bot token stays in the service environment.
+#
+# The adapter long-polls Telegram, registers itself on the city's extmsg API,
+# and receives agent publishes at /publish. Project desks, topics, and
+# approvals are the factory router inside the same process. Tokens and
+# responsibilities.json are not part of this pack.
+
+[pack]
+name = "telegram"
+version = "0.1.0"
+schema = 2
+description = "Telegram UI for Gas City. Approvals, project desks, and the extmsg adapter."
+
+[[service]]
+name = "telegram"
+kind = "proxy_process"
+
+[service.publication]
+visibility = "private"
+
+[service.process]
+command = ["python3", "-u", "./adapter/bridge.py"]
+health_path = "/healthz"
