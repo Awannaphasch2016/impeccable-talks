@@ -138,6 +138,9 @@ def bead_meta(bead):
 
 
 def bead_id(bead):
+    # respond passes the gate id string into the same helpers that read a bead.
+    if isinstance(bead, str):
+        return bead
     return str(bead.get("id") or "")
 
 
