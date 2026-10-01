@@ -26,7 +26,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 CITY = os.environ.get("GC_CITY_PATH", "/opt/gascity/city")
 PROJECTS = os.environ.get("PROJECTS", "/opt/gascity/projects")
-PROJECT = os.path.join(PROJECTS, "experiment")
+RIG = os.environ.get("RIG", "experiment")
+PROJECT = os.path.join(PROJECTS, RIG)
 SHELL_STEPS = ("plan", "review", "finish")
 GATE_STEPS = ("plan-approve", "review-approve-dev", "review-approve-pm")
 # Pool claim reads gc.routed_to and then stamps .assignee. These are the
@@ -513,7 +514,7 @@ def command_release(run):
             if not any(bead_status(iteration) == "closed" for iteration in iterations):
                 continue
             result = subprocess.run(
-                ["gc", "--city", CITY, "--rig", "experiment", "convoy", "control", bead_id(control)],
+                ["gc", "--city", CITY, "--rig", RIG, "convoy", "control", bead_id(control)],
                 cwd=CITY,
                 capture_output=True,
                 text=True,

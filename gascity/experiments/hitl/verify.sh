@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 #
-# Sling the approval formula on the experiment rig twice and check the gates.
+# Sling the approval formula twice and check the gates.
 # The rig must already be registered. This script does not create a store and
-# does not install Dolt or bd.
+# does not install Dolt or bd. RIG selects the registered rig (default: experiment).
 
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 CITY=${GC_CITY_PATH:-/opt/gascity/city}
 PROJECTS=${PROJECTS:-/opt/gascity/projects}
-RIG=experiment
+RIG=${RIG:-experiment}
+export RIG
 DIR=$PROJECTS/$RIG
 HITL=$ROOT/gascity/experiments/hitl/hitl.py
 AGENT=$RIG/factory.builder
@@ -18,14 +19,21 @@ log() { printf '%s\n' "$*" >&2; }
 fail() { printf 'fail: %s\n' "$*" >&2; exit 1; }
 
 rig_registered() {
-  (cd "$CITY" && gc rig list) 2>&1 | awk '
-    /^[[:space:]]*experiment([^[:alnum:]_]|$)/ && $0 !~ /unknown rig/ { found = 1 }
+  (cd "$CITY" && gc rig list) 2>&1 | awk -v rig="$RIG" '
+    $0 !~ /unknown rig/ {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      if (index(line, rig) == 1) {
+        rest = substr(line, length(rig) + 1, 1)
+        if (rest == "" || rest !~ /[[:alnum:]_]/) found = 1
+      }
+    }
     END { exit !found }
   '
 }
 
 if ! rig_registered; then
-  printf 'experiment is not registered. Run gascity/run/run-matrix.sh to register it.\n' >&2
+  printf '%s is not registered. Run gascity/run/run-matrix.sh to register it.\n' "$RIG" >&2
   exit 1
 fi
 
