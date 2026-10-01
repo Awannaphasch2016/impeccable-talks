@@ -206,13 +206,15 @@ def workflow_beads(run):
 
 def step_key(bead):
     fields = bead_meta(bead)
-    if fields.get("gc.step_id"):
-        return fields["gc.step_id"]
-    ref = str(bead.get("ref") or "")
+    ref = fields.get("gc.step_id") or str(bead.get("ref") or "")
+    # Poured gate steps store the compiled id (approval.plan-approve).
+    # Shell iterations store the short id (plan). Routes use the short id.
     if ref.startswith("approval."):
         ref = ref[len("approval."):]
     if ".gate-" in ref:
         return ref.rsplit(".gate-", 1)[-1]
+    if ref.startswith("gate-"):
+        ref = ref[len("gate-"):]
     if ".iteration." in ref:
         return ref.split(".iteration.", 1)[0]
     return ref
