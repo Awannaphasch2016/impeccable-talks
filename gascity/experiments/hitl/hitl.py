@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Human routing for the experiment rig's approval formula.
+"""Human routing for an approval formula.
 
 pending lists open human gates whose other needs are already closed, joins
 each gate to the role in routes.toml, and prints the members who hold that
@@ -26,7 +26,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 CITY = os.environ.get("GC_CITY_PATH", "/opt/gascity/city")
 PROJECTS = os.environ.get("PROJECTS", "/opt/gascity/projects")
-RIG = os.environ.get("RIG", "experiment")
+RIG = os.environ.get("RIG", "").strip()
+if not RIG:
+    raise SystemExit("RIG is required")
 PROJECT = os.path.join(PROJECTS, RIG)
 SHELL_STEPS = ("plan", "review", "finish")
 GATE_STEPS = ("plan-approve", "review-approve-dev", "review-approve-pm")
@@ -587,7 +589,7 @@ def command_audit(run):
 def main():
     if not os.path.isdir(PROJECT):
         raise SystemExit(f"{PROJECT} does not exist")
-    parser = argparse.ArgumentParser(description="Route approval gates on the experiment rig")
+    parser = argparse.ArgumentParser(description="Route approval gates for the rig named by RIG")
     sub = parser.add_subparsers(dest="command", required=True)
     pending = sub.add_parser("pending")
     pending.add_argument("--run", required=True)

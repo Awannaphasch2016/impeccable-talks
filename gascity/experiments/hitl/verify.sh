@@ -2,14 +2,17 @@
 #
 # Sling the approval formula twice and check the gates.
 # The rig must already be registered. This script does not create a store and
-# does not install Dolt or bd. RIG selects the registered rig (default: experiment).
+# does not install Dolt or bd. RIG names that rig.
 
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 CITY=${GC_CITY_PATH:-/opt/gascity/city}
 PROJECTS=${PROJECTS:-/opt/gascity/projects}
-RIG=${RIG:-experiment}
+if [ -z "${RIG:-}" ]; then
+  printf 'RIG is required.\n' >&2
+  exit 1
+fi
 export RIG
 DIR=$PROJECTS/$RIG
 HITL=$ROOT/gascity/experiments/hitl/hitl.py
