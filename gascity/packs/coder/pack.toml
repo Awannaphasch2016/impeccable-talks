@@ -1,0 +1,18 @@
+# Generic coder for the builder experiment.
+#
+# The mol-* formulas already describe the work. This pack only supplies an
+# agent that can edit the repository and has no opinion about websites, so a
+# landing-page prompt from another pack cannot leak into the arm.
+#
+#   gc rig add <project> --name <name> --prefix <prefix> --include <this pack>
+#   bd create "Build the landing page" --body-file docs/brief.md
+#   gc sling <name>/coder.coder <bead> --on mol-do-work
+[pack]
+name = "coder"
+schema = 2
+description = "One agent that implements the bead it is given. No website-specific instructions."
+
+[[named_session]]
+template = "coder"
+scope = "rig"
+mode = "on_demand"

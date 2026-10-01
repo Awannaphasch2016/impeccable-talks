@@ -1,0 +1,7 @@
+# Step id to the role that may close that step's human gate.
+# Roles are not a gate field. bd gate resolve does not check them.
+
+[routes]
+plan-approve = "project-manager"
+review-approve-dev = "developer"
+review-approve-pm = "project-manager"

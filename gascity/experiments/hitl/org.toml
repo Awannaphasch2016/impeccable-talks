@@ -1,0 +1,14 @@
+# Organization directory for the approval formula. This is not a rig:
+# a rig has no owner and no members. Roles live here, outside the bead store.
+
+[members.alice]
+roles = ["project-manager"]
+
+[members.bob]
+roles = ["developer"]
+
+[members.carol]
+roles = ["project-manager", "developer"]
+
+[members.dave]
+roles = []

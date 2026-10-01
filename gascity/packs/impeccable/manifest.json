@@ -1,0 +1,179 @@
+{
+  "generator": "gascity/convert/impeccable-to-gascity.mjs",
+  "generatedAt": "2026-09-27T15:49:20.468Z",
+  "source": "skill 0.1.6, commit 9d715cc",
+  "pack": "impeccable",
+  "agents": [
+    {
+      "name": "impeccable.conductor",
+      "origin": "skill/reference/critique.md (Setup, Generate Combined Critique Report, Persist the Snapshot, Ask the User)",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "disallowedTools": [
+        "MultiEdit",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": false,
+      "effort": "high",
+      "model": "inherit",
+      "maxTurns": null
+    },
+    {
+      "name": "impeccable.design-reviewer",
+      "origin": "skill/reference/critique.md (Assessment A: Design Review, Reference Material)",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebFetch"
+      ],
+      "disallowedTools": [
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": true,
+      "effort": "high",
+      "model": "inherit",
+      "maxTurns": null
+    },
+    {
+      "name": "impeccable.evidence-collector",
+      "origin": "skill/reference/critique.md (Assessment B: Detector + Browser Evidence)",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebFetch"
+      ],
+      "disallowedTools": [
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": true,
+      "effort": "medium",
+      "model": "inherit",
+      "maxTurns": null
+    },
+    {
+      "name": "impeccable.asset-producer",
+      "origin": "skill/agents/impeccable-asset-producer.md",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "disallowedTools": [
+        "MultiEdit",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": false,
+      "effort": "medium",
+      "model": "inherit",
+      "maxTurns": 24
+    },
+    {
+      "name": "impeccable.documenter",
+      "origin": "skill/agents/impeccable-documenter.md",
+      "tools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "disallowedTools": [
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": false,
+      "effort": "medium",
+      "model": "inherit",
+      "maxTurns": 30
+    },
+    {
+      "name": "impeccable.finish-reviewer",
+      "origin": "skill/agents/impeccable-finish-reviewer.md",
+      "tools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "disallowedTools": [
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": true,
+      "effort": "high",
+      "model": "inherit",
+      "maxTurns": 30
+    },
+    {
+      "name": "impeccable.manual-edit-applier",
+      "origin": "skill/agents/impeccable-manual-edit-applier.md",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "disallowedTools": [
+        "MultiEdit",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "AskUserQuestion"
+      ],
+      "readOnly": false,
+      "effort": "medium",
+      "model": "inherit",
+      "maxTurns": 12
+    }
+  ],
+  "formulas": [
+    "critique"
+  ]
+}

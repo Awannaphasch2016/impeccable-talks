@@ -1,0 +1,13 @@
+# The onepage and factory packs both name their builder "builder". A rig patch
+# matches that local name and stops at the first one, so it cannot point the
+# two builders at different worktrees. This pack is the onepage builder under
+# a local name the experiment rig can patch.
+[pack]
+name = "experiment-page"
+schema = 2
+description = "The onepage landing-page builder, named so an experiment rig can give it its own work directory."
+
+[[named_session]]
+template = "onepage"
+scope = "rig"
+mode = "on_demand"

@@ -1,0 +1,10 @@
+# Add to the city's city.toml. The API URL is the machine-wide supervisor's
+# listener with the city name appended; it is the same host and port the
+# factory pack's FACTORY_API uses on the reference deployment.
+[workspace.env]
+IMPECCABLE_PACK = "/opt/gascity/packs/impeccable"
+IMPECCABLE_API = "http://127.0.0.1:8372/v0/city/factory"
+
+# Then, per project:
+#   gc rig add /opt/gascity/projects/<name> --name <name> --include /opt/gascity/packs/impeccable
+#   gc sling <name>/impeccable.conductor critique --formula --var target=index.html

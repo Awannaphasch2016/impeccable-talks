@@ -1,0 +1,6 @@
+Formulas in this directory are the experiment rig's formulas_dir.
+
+Gas City gives that directory priority over pack formulas for this rig only,
+matched by filename. website-factory.toml here is the implement step alone,
+reading docs/brief.md. onepage.toml here runs that same step on
+experiment-page.onepage. The pack formulas stay in force for every other rig.

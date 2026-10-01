@@ -1,0 +1,29 @@
+# Impeccable used as a builder: one step, one session, the installed skill
+# does the design and the writing.
+#
+#   gc sling <rig>/@@PACK@@.runner build-native --formula
+#
+# The page to build is docs/brief.md. The file the experiment scores is
+# site/index.html. Critique stays a separate formula; this one does not
+# review the page.
+
+formula = "build-native"
+description = "Build the page docs/brief.md describes, using the installed Impeccable skill."
+
+[requires]
+formula_compiler = ">=2.0.0"
+
+[[steps]]
+id = "build"
+title = "Build the page with the Impeccable skill"
+description = """
+Read docs/brief.md. Build the page it describes by following the Impeccable
+skill installed in this repository's `.claude/` (its new-work flow). The
+skill's questions have no one to answer them: the brief is closed, so take
+its decisions as the answers and do not wait.
+
+Done when site/index.html exists, is the page the brief names, is committed,
+and `git status` is clean. Close the step with a note naming that file and
+the commit. Do not write a critique.
+"""
+metadata = { "gc.run_target" = "@@PACK@@.runner" }

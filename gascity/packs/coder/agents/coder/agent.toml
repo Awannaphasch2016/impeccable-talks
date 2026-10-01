@@ -1,0 +1,7 @@
+description = "Implements the bead it is routed, in this repository, and commits the result."
+scope = "rig"
+option_defaults = { model = "claude-sonnet-5", effort = "high" }
+args = ["--disallowedTools", "AskUserQuestion"]
+
+[env]
+OTEL_RESOURCE_ATTRIBUTES = "gc.agent=coder.coder"
